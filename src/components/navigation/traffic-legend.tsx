@@ -10,11 +10,9 @@ interface TrafficLegendProps {
 }
 
 /**
- * TrafficLegend
+ * TrafficLegend — lista colapsável do trânsito ao vivo (desktop apenas).
  * ----------------------------------------------------------------------------
- * Collapsible list of live traffic readings shown bottom-left (desktop) /
- * hidden on mobile (where space is at a premium — the map dots + popups are
- * enough). Lets the user skim the simulated feed without clicking each dot.
+ * Mostra as vias monitoradas com seus níveis de congestionamento.
  */
 export function TrafficLegend({ readings }: TrafficLegendProps) {
   const [open, setOpen] = useState(false);
@@ -31,7 +29,7 @@ export function TrafficLegend({ readings }: TrafficLegendProps) {
         <div className="flex items-center gap-2">
           <Activity className="size-3.5 text-primary" />
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Live traffic · {readings.length} roads
+            Trânsito agora · {readings.length} vias
           </span>
         </div>
         {open ? <ChevronDown className="size-3.5 text-muted-foreground" /> : <ChevronUp className="size-3.5 text-muted-foreground" />}
@@ -46,7 +44,7 @@ export function TrafficLegend({ readings }: TrafficLegendProps) {
               />
               <span className="min-w-0 flex-1 truncate text-foreground">{r.roadName}</span>
               <span className={cn('shrink-0 font-mono', textColorFor(r.level))}>{r.level}</span>
-              <span className="shrink-0 text-muted-foreground">{r.currentSpeed}km/h</span>
+              <span className="shrink-0 text-muted-foreground">{r.currentSpeed} km/h</span>
             </div>
           ))}
         </div>

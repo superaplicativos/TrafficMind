@@ -4,30 +4,25 @@ import { Sparkles } from 'lucide-react';
 import type { Route } from '@/lib/navigation/types';
 
 /**
- * RouteScoringExplain
+ * RouteScoringExplain — breakdown visual de como o score foi calculado.
  * ----------------------------------------------------------------------------
- * Visual breakdown of how the selected route's composite score was computed.
- * This is the user-facing "explainability" surface that turns the black-box
- * RouteScore into four labelled bars so users can see WHY a route is
- * recommended — the same idea Google Maps' "fastest / 5 min slower" labels
- * use, but for our richer score.
- *
- * The weights mirror the backend RouteScoringService defaults so the bars are
- * proportional to the actual score contribution.
+ * Mostra as 4 componentes do score (Tempo, Trânsito, Cruzamentos, Complexidade)
+ * em barras proporcionais para o usuário entender POR QUE uma rota foi
+ * recomendada.
  */
 export function RouteScoringExplain({ route }: { route: Route }) {
-  const eta = Math.round(route.duration);              // 1s = 1pt
-  const traffic = Math.round(route.trafficLevel * 6);  // 1pt × 6
-  const intersections = Math.round(route.intersectionCount * 25);
-  const complexity = Math.round(route.roadComplexity * 4);
-  const total = eta + traffic + intersections + complexity;
-  const maxBar = Math.max(eta, traffic, intersections, complexity, 1);
+  const tempo = Math.round(route.duration);
+  const transito = Math.round(route.trafficLevel * 6);
+  const cruzamentos = Math.round(route.intersectionCount * 25);
+  const complexidade = Math.round(route.roadComplexity * 4);
+  const total = tempo + transito + cruzamentos + complexidade;
+  const maxBar = Math.max(tempo, transito, cruzamentos, complexidade, 1);
 
   const rows = [
-    { label: 'ETA', value: eta, color: 'bg-cyan-400' },
-    { label: 'Traffic', value: traffic, color: 'bg-amber-400' },
-    { label: 'Intersections', value: intersections, color: 'bg-purple-400' },
-    { label: 'Road complexity', value: complexity, color: 'bg-rose-400' },
+    { label: 'Tempo', value: tempo, color: 'bg-cyan-400' },
+    { label: 'Trânsito', value: transito, color: 'bg-amber-400' },
+    { label: 'Cruzamentos', value: cruzamentos, color: 'bg-purple-400' },
+    { label: 'Complexidade', value: complexidade, color: 'bg-rose-400' },
   ];
 
   return (
@@ -35,7 +30,7 @@ export function RouteScoringExplain({ route }: { route: Route }) {
       <div className="mb-2 flex items-center gap-1.5">
         <Sparkles className="size-3.5 text-primary" />
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Score breakdown · total {total}
+          Como calculamos o score · total {total}
         </span>
       </div>
       <div className="space-y-1.5">
@@ -59,6 +54,9 @@ export function RouteScoringExplain({ route }: { route: Route }) {
           </div>
         ))}
       </div>
+      <p className="mt-2 text-[10px] text-muted-foreground">
+        Menor score = melhor rota. O score combina tempo, trânsito, cruzamentos e complexidade.
+      </p>
     </div>
   );
 }

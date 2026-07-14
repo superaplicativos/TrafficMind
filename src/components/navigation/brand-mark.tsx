@@ -3,11 +3,7 @@
 import { BrainCircuit } from 'lucide-react';
 
 /**
- * BrandMark
- * ----------------------------------------------------------------------------
- * Floating brand badge top-left on desktop / hidden on mobile (where the
- * search box takes that slot). Reinforces the product identity and the
- * "AI-powered" positioning.
+ * BrandMark — badge flutuante no canto superior esquerdo (desktop).
  */
 export function BrandMark() {
   return (
@@ -19,7 +15,7 @@ export function BrandMark() {
         <div className="leading-tight">
           <div className="text-sm font-semibold text-foreground">TrafficMind</div>
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            AI Routing MVP
+            Rotas inteligentes
           </div>
         </div>
       </div>

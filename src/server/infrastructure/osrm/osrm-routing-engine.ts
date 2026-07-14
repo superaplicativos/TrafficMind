@@ -300,11 +300,11 @@ function buildLabel(strategy: RouteStrategy, durationS: number, distanceM: numbe
 }
 
 const STRATEGY_LABELS: Record<RouteStrategy, string> = {
-  fastest: 'Fastest',
-  shortest: 'Shortest',
-  scenic: 'Scenic',
-  least_turns: 'Fewest Turns',
-  experimental: 'AI Experimental',
+  fastest: 'Mais rápida',
+  shortest: 'Mais curta',
+  scenic: 'Cênica',
+  least_turns: 'Menos curvas',
+  experimental: 'IA experimental',
 };
 
 // ---------------------------------------------------------------------------

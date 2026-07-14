@@ -16,10 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TrafficMind — AI-Powered Traffic Navigation",
+  title: "TrafficMind — Rotas Inteligentes com IA",
   description:
-    "Smarter routing, not just navigation. TrafficMind calculates multiple alternative routes and ranks them using a transparent RouteScore that blends ETA, simulated traffic, intersection penalty and road complexity.",
-  keywords: ["navigation", "traffic", "routing", "AI", "OSRM", "GraphHopper", "OpenStreetMap", "MapLibre"],
+    "Navegação mais inteligente, não apenas mais um mapa. O TrafficMind calcula múltiplas rotas alternativas e as classifica com um score transparente que combina tempo, trânsito, cruzamentos e complexidade da via.",
+  keywords: ["navegação", "trânsito", "rotas", "IA", "OSRM", "GraphHopper", "OpenStreetMap", "MapLibre", "São Paulo"],
   authors: [{ name: "TrafficMind" }],
   icons: { icon: "/logo.svg" },
 };
