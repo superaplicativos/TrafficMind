@@ -236,7 +236,14 @@ export function NavigationMap({ traffic, onMapLongPress }: NavigationMapProps) {
         [origin.lng, origin.lat],
         [destination.lng, destination.lat],
       );
-      map.fitBounds(bounds, { padding: 100, maxZoom: 15, duration: 800 });
+      // maxZoom alto + padding maior em mobile pra não afastar demais.
+      // Antes o fitBounds afastava o zoom em rotas longas, dando a impressão
+      // de "mapa do mundo inteiro".
+      map.fitBounds(bounds, {
+        padding: { top: 180, bottom: 280, left: 60, right: 60 },
+        maxZoom: 14,
+        duration: 800,
+      });
     } else {
       map.flyTo({ center: [destination.lng, destination.lat], zoom: 14, duration: 800 });
     }
