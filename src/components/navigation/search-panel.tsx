@@ -49,7 +49,10 @@ export function SearchPanel({ onLocateMe, locating }: SearchPanelProps) {
   };
 
   return (
-    <div className="pointer-events-auto absolute left-1/2 top-3 z-30 w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 sm:left-3 sm:translate-x-0">
+    <div
+      ref={containerRef}
+      className="pointer-events-auto absolute left-1/2 top-3 z-30 w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 sm:left-3 sm:translate-x-0"
+    >
       <div className="glass-panel-strong rounded-2xl p-2 shadow-2xl">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
