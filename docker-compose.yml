@@ -1,0 +1,165 @@
+# ===========================================================================
+# TrafficMind — full stack orchestration
+# ===========================================================================
+# Brings up the entire MVP with one command:
+#
+#   docker compose up
+#
+# Services:
+#   - frontend  : Next.js 16 app (this repo)
+#   - backend   : NestJS reference implementation of the routing/traffic API
+#   - postgres  : PostgreSQL 16 + PostGIS for spatial persistence
+#   - redis     : cache for routing/traffic responses
+#   - osrm      : OSRM routing engine seeded with São Paulo OSM extract
+#   - graphhopper: (optional, profile-disabled by default) GraphHopper engine
+#
+# The frontend talks to the NestJS backend at http://localhost:4000 by default.
+# When the backend is down, the frontend falls back to its built-in Next.js
+# API routes (so the app still works for development / preview).
+# ===========================================================================
+
+version: "3.9"
+
+networks:
+  trafficmind:
+    driver: bridge
+
+volumes:
+  pgdata:
+  osrm-data:
+  graphhopper-data:
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL + PostGIS
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trafficmind
+      POSTGRES_PASSWORD: trafficmind
+      POSTGRES_DB: trafficmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trafficmind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [trafficmind]
+
+  # ---------------------------------------------------------------------------
+  # Redis — cache layer for routing/traffic responses
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [trafficmind]
+
+  # ---------------------------------------------------------------------------
+  # OSRM routing engine — São Paulo extract
+  # Pre-processed OSM data is downloaded on first run; subsequent runs reuse
+  # the cached volume. Replace the URL with a custom extract for other cities.
+  # ---------------------------------------------------------------------------
+  osrm:
+    image: osrm/osrm-backend:latest
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - osrm-data:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        if [ ! -f /data/sao-paulo.osrm ]; then
+          echo "Downloading São Paulo OSM extract (~150MB)…";
+          apt-get update && apt-get install -y --no-install-recommends wget bzip2;
+          wget -q -O /data/sao-paulo.osm.pbf https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf;
+          osrm-extract -p /opt/car.lua /data/sao-paulo.osm.pbf;
+          osrm-partition /data/sao-paulo.osrm;
+          osrm-customize /data/sao-paulo.osrm;
+        fi
+        osrm-routed --algorithm mld /data/sao-paulo.osrm
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/route/v1/driving/0,0;0,0"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    networks: [trafficmind]
+
+  # ---------------------------------------------------------------------------
+  # GraphHopper — alternative routing engine (optional)
+  # Disabled by default because it requires its own OSM data extract.
+  # Enable with:  docker compose up graphhopper
+  # ---------------------------------------------------------------------------
+  graphhopper:
+    image: graphhopper/graphhopper:latest
+    profiles: ["graphhopper"]
+    restart: unless-stopped
+    ports:
+      - "8989:8989"
+    volumes:
+      - graphhopper-data:/data
+      - ./infra/graphhopper/config.yml:/config.yml:ro
+    environment:
+      JAVA_OPTS: "-Xmx2G -Xms1G"
+    networks: [trafficmind]
+
+  # ---------------------------------------------------------------------------
+  # NestJS backend — Clean Architecture reference implementation
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      osrm:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://trafficmind:trafficmind@postgres:5432/trafficmind?schema=public
+      REDIS_URL: redis://redis:6379
+      OSRM_ENDPOINT: http://osrm:5000
+      NOMINATIM_ENDPOINT: https://nominatim.openstreetmap.org
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "4000:4000"
+    networks: [trafficmind]
+
+  # ---------------------------------------------------------------------------
+  # Next.js frontend (this repo)
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE: http://localhost:4000
+      OSRM_ENDPOINT: http://osrm:5000
+    ports:
+      - "3000:3000"
+    networks: [trafficmind]

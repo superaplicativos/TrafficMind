@@ -1,0 +1,195 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "TrafficMind API",
+    "version": "1.0.0-mvp",
+    "description": "AI-powered traffic navigation MVP. Calculates multiple alternative routes between two points and ranks them using a custom RouteScore that blends ETA, simulated traffic, intersection count, accident penalty and road complexity.",
+    "contact": { "name": "TrafficMind", "url": "https://github.com/trafficmind" }
+  },
+  "servers": [
+    { "url": "/api", "description": "Same-origin API" }
+  ],
+  "paths": {
+    "/route": {
+      "post": {
+        "summary": "Calculate and rank alternative routes",
+        "description": "Calls the routing engine (OSRM in MVP, GraphHopper in production) for every requested strategy, enriches each route with traffic, complexity and fuel, then ranks them by composite RouteScore (lower is better). The first route in the response is the recommended one.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["origin", "destination"],
+                "properties": {
+                  "origin": { "$ref": "#/components/schemas/GeoCoordinate" },
+                  "destination": { "$ref": "#/components/schemas/GeoCoordinate" },
+                  "strategies": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["fastest", "shortest", "scenic", "least_turns", "experimental"] },
+                    "default": ["fastest", "shortest", "scenic", "least_turns", "experimental"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Routes calculated and ranked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "routes": { "type": "array", "items": { "$ref": "#/components/schemas/Route" } },
+                    "recommendedId": { "type": "string" },
+                    "generatedAt": { "type": "number" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid request body" }
+        }
+      }
+    },
+    "/geocode": {
+      "get": {
+        "summary": "Forward geocode (search)",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Free-text query (min 3 chars)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Geocoding candidates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": { "type": "array", "items": { "$ref": "#/components/schemas/GeocodingResult" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reverse-geocode": {
+      "get": {
+        "summary": "Reverse geocode (coordinate to label)",
+        "parameters": [
+          { "name": "lat", "in": "query", "required": true, "schema": { "type": "number" } },
+          { "name": "lng", "in": "query", "required": true, "schema": { "type": "number" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reverse-geocoded label",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "result": { "$ref": "#/components/schemas/GeocodingResult" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/traffic": {
+      "get": {
+        "summary": "Current traffic for a map region",
+        "parameters": [
+          { "name": "south", "in": "query", "required": true, "schema": { "type": "number" } },
+          { "name": "west", "in": "query", "required": true, "schema": { "type": "number" } },
+          { "name": "north", "in": "query", "required": true, "schema": { "type": "number" } },
+          { "name": "east", "in": "query", "required": true, "schema": { "type": "number" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Simulated traffic readings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "readings": { "type": "array", "items": { "$ref": "#/components/schemas/TrafficReading" } },
+                    "generatedAt": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Liveness probe",
+        "responses": { "200": { "description": "Service is alive" } }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GeoCoordinate": {
+        "type": "object",
+        "required": ["lat", "lng"],
+        "properties": { "lat": { "type": "number" }, "lng": { "type": "number" } }
+      },
+      "GeocodingResult": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string" },
+          "secondary": { "type": "string" },
+          "coordinate": { "$ref": "#/components/schemas/GeoCoordinate" },
+          "osmId": { "type": "string" }
+        }
+      },
+      "TrafficReading": {
+        "type": "object",
+        "properties": {
+          "roadId": { "type": "string" },
+          "roadName": { "type": "string" },
+          "center": { "$ref": "#/components/schemas/GeoCoordinate" },
+          "level": { "type": "number", "minimum": 0, "maximum": 100 },
+          "freeFlowSpeed": { "type": "number" },
+          "currentSpeed": { "type": "number" },
+          "timestamp": { "type": "number" }
+        }
+      },
+      "RouteInstruction": {
+        "type": "object",
+        "properties": {
+          "step": { "type": "number" },
+          "text": { "type": "string" },
+          "distance": { "type": "number" },
+          "duration": { "type": "number" },
+          "sign": { "type": "number" },
+          "location": { "$ref": "#/components/schemas/GeoCoordinate" }
+        }
+      },
+      "Route": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "strategy": { "type": "string", "enum": ["fastest", "shortest", "scenic", "least_turns", "experimental"] },
+          "label": { "type": "string" },
+          "distance": { "type": "number" },
+          "duration": { "type": "number" },
+          "geometry": { "type": "array", "items": { "$ref": "#/components/schemas/GeoCoordinate" } },
+          "instructions": { "type": "array", "items": { "$ref": "#/components/schemas/RouteInstruction" } },
+          "intersectionCount": { "type": "number" },
+          "roadComplexity": { "type": "number" },
+          "trafficLevel": { "type": "number" },
+          "estimatedFuel": { "type": "number" },
+          "score": { "type": "number" },
+          "isRecommended": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}
