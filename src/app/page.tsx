@@ -19,19 +19,22 @@ import type { GeoBounds, TrafficReading } from '@/lib/navigation/types';
  * Home page
  * ----------------------------------------------------------------------------
  * The single user-visible route. Lays out the MapLibre map full-screen with
- * floating UI on top:
- *   - SearchPanel (top center / top-left on desktop)
- *   - StrategyFilter (below search, only when destination is set)
- *   - BrandMark (top-left desktop only)
- *   - TrafficLegend (bottom-left desktop only)
- *   - RouteSheet (bottom center, mobile-first)
+ * floating UI on top.
  *
- * Side effects:
- *   - GPS subscription → pushes origin into the store.
- *   - When both origin and destination are set → triggers route calculation.
- *   - Polls /api/traffic for the visible map bounds every 30s.
- *   - Long-press on the map → reverse-geocodes the point and sets it as the
- *     destination.
+ * UX flow (the "happy path"):
+ *   1. User opens the page → map loads centered on São Paulo.
+ *   2. User searches a destination → dropdown of Nominatim candidates.
+ *   3. User picks a destination → toast confirms, destination pin dropped.
+ *      → If no origin yet, automatically request GPS permission.
+ *      → Bottom sheet shows "Set your starting point" with two CTAs:
+ *        "Use my GPS" (retry permission) or "Use map center" (fallback).
+ *   4. Origin acquired (GPS or fallback) → routes auto-calculate.
+ *   5. Bottom sheet shows recommended route, expandable to see all 5
+ *      alternatives + statistics + score breakdown.
+ *
+ * The page also supports long-press on the map to drop a destination pin
+ * (with reverse-geocoded label) and a `?origin=lat,lng` query param for
+ * headless / preview runs that bypass GPS.
  */
 export default function Home() {
   const origin = useNavigationStore((s) => s.origin);
@@ -55,8 +58,6 @@ export default function Home() {
   }, [geo.position, setOrigin]);
 
   // ----- Demo / test mode: ?origin=lat,lng bypasses GPS ----------------
-  // Useful for headless previews, CI smoke tests and users who decline
-  // the geolocation permission prompt. In production this is a no-op.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -68,9 +69,28 @@ export default function Home() {
     }
   }, [setOrigin]);
 
-  // Surface geolocation errors as toasts (once per error message).
+  // ----- Auto-request GPS when destination is set but origin is missing --
+  // This is the key UX fix: previously the user picked a destination and
+  // nothing happened because origin was never requested. Now we trigger the
+  // GPS permission prompt automatically the moment a destination is chosen.
+  // Depends only on `geo.request` (stable useCallback) + origin/destination
+  // so the effect doesn't fire on every render.
+  const geoRequest = geo.request;
   useEffect(() => {
-    if (geo.error) toast.error(`GPS: ${geo.error}`);
+    if (destination && !origin) {
+      geoRequest();
+    }
+  }, [destination, origin, geoRequest]);
+
+  // Surface geolocation errors as a single toast (id dedupes repeats).
+  useEffect(() => {
+    if (geo.error) {
+      toast.error('Could not get your location', {
+        id: 'geo-error', // stable id → sonner replaces instead of stacking
+        description: `${geo.error}. You can still set your starting point manually with "Use map center".`,
+        duration: 6000,
+      });
+    }
   }, [geo.error]);
 
   // ----- Auto-calculate routes when both ends are set -------------------
@@ -97,8 +117,6 @@ export default function Home() {
   // ----- Periodically sync the map's viewport bounds into state ---------
   useEffect(() => {
     const interval = setInterval(() => {
-      // The map exposes itself on window for the MVP; a more robust solution
-      // would forward a ref. Keeping it simple per the MVP brief.
       const map = (window as unknown as { __map?: MaplibreMap }).__map;
       if (!map) return;
       const b = getMapBounds(map);
@@ -110,23 +128,43 @@ export default function Home() {
   // ----- Long-press to set destination ---------------------------------
   const handleMapLongPress = useCallback(
     async (coord: { lat: number; lng: number }) => {
-      // Reverse geocode for a friendly label (best-effort, not blocking).
       try {
         const res = await reverseGeocode(coord);
         setDestination(coord, res.result?.label ?? 'Dropped pin');
-        toast.success('Destination set', { description: res.result?.label ?? `${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)}` });
+        toast.success('Destination set', {
+          description: res.result?.label ?? `${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)}`,
+        });
       } catch {
         setDestination(coord, 'Dropped pin');
-        toast.success('Destination set', { description: `${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)}` });
+        toast.success('Destination set', {
+          description: `${coord.lat.toFixed(4)}, ${coord.lng.toFixed(4)}`,
+        });
       }
     },
     [setDestination],
   );
 
-  // ----- Show recalculation errors -------------------------------------
+  // ----- "Use map center as origin" fallback ---------------------------
+  const useMapCenterAsOrigin = useCallback(() => {
+    const map = (window as unknown as { __map?: MaplibreMap }).__map;
+    if (!map) {
+      toast.error('Map not ready yet');
+      return;
+    }
+    const center = map.getCenter();
+    setOrigin({ lat: center.lat, lng: center.lng });
+    toast.success('Starting point set', {
+      description: `Map center: ${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`,
+    });
+  }, [setOrigin]);
+
+  // ----- Show route calculation errors ---------------------------------
   useEffect(() => {
     if (calc.isError) {
-      toast.error('Route calculation failed', { description: (calc.error as Error)?.message });
+      toast.error('Route calculation failed', {
+        description: (calc.error as Error)?.message ?? 'Please try again.',
+        duration: 6000,
+      });
     }
   }, [calc.isError, calc.error]);
 
@@ -141,41 +179,39 @@ export default function Home() {
      
   }, [calc.data]);
 
+  const locating = !geo.position && (geo.permission === 'unknown' || geo.permission === 'prompt');
+
   return (
     <main className="relative h-[100dvh] w-screen overflow-hidden bg-background">
-      {/* Map (full-screen base layer) */}
       <NavigationMap traffic={traffic} onMapLongPress={handleMapLongPress} />
 
-      {/* Floating UI layer */}
       <div className="pointer-events-none absolute inset-0">
         <BrandMark />
         <SearchPanel
           onLocateMe={() => {
             geo.request();
-            toast.info('Locating you…');
+            toast.info('Requesting your location…');
           }}
-          locating={geo.permission === 'unknown' && !geo.position}
+          locating={locating}
         />
         <StrategyFilter />
         <TrafficLegend readings={traffic} />
-        <RouteSheet />
+        <RouteSheet
+          locating={locating}
+          onLocateMe={() => {
+            geo.request();
+            toast.info('Requesting your location…');
+          }}
+          onUseMapCenterAsOrigin={useMapCenterAsOrigin}
+        />
       </div>
 
       {/* Tiny destination banner so the user always sees what they typed */}
       {destination && destinationLabel && (
-        <div className="pointer-events-none absolute left-1/2 top-32 z-10 hidden -translate-x-1/2 md:block">
+        <div className="pointer-events-none absolute left-1/2 top-36 z-10 hidden -translate-x-1/2 md:block">
           <div className="glass-panel rounded-full px-3 py-1.5 text-xs text-foreground shadow-md">
             <span className="text-muted-foreground">To: </span>
             <span className="font-medium">{destinationLabel}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Loading overlay while route calculation is in flight and no routes yet */}
-      {calc.isPending && (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
-          <div className="glass-panel-strong mx-auto inline-block rounded-xl px-4 py-2 text-sm text-foreground shadow-xl">
-            Calculating routes…
           </div>
         </div>
       )}

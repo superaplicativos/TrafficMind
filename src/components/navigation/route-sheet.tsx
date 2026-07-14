@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronUp, ChevronDown, Navigation, Gauge, Fuel, GitBranch, Activity, Layers } from 'lucide-react';
+import { ChevronUp, ChevronDown, Navigation, Gauge, Fuel, GitBranch, Activity, Layers, Crosshair, MapPin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { useNavigationStore } from '@/hooks/navigation/use-navigation-store';
 import { STRATEGY_META } from '@/lib/navigation/types';
@@ -12,6 +11,15 @@ import type { Route } from '@/lib/navigation/types';
 import { RouteScoringExplain } from './route-score-explain';
 
 type SheetState = 'collapsed' | 'half' | 'full';
+
+interface RouteSheetProps {
+  /** True while GPS permission is being requested / position is being acquired. */
+  locating: boolean;
+  /** Called when the user asks the app to set the origin from GPS. */
+  onLocateMe: () => void;
+  /** Called when the user wants to use the current map center as origin (fallback). */
+  onUseMapCenterAsOrigin: () => void;
+}
 
 /**
  * RouteSheet
@@ -21,24 +29,85 @@ type SheetState = 'collapsed' | 'half' | 'full';
  *   - the list of alternative routes (half)
  *   - the full statistics breakdown + score explanation (full)
  *
- * On desktop the same content is rendered as a side panel (parent decides);
- * here we always render the mobile-style sheet and let CSS handle the layout.
+ * Empty states are context-aware:
+ *   - no destination      → "Search a destination or long-press the map"
+ *   - destination, no origin → "Set your starting point" with two CTAs
+ *   - both set, calculating  → handled by the parent's overlay
+ *   - both set, error        → show error + retry hint
  */
-export function RouteSheet() {
+export function RouteSheet({ locating, onLocateMe, onUseMapCenterAsOrigin }: RouteSheetProps) {
   const [state, setState] = useState<SheetState>('collapsed');
   const routes = useNavigationStore((s) => s.routes);
+  const destination = useNavigationStore((s) => s.destination);
+  const origin = useNavigationStore((s) => s.origin);
   const selectedId = useNavigationStore((s) => s.selectedRouteId);
   const select = useNavigationStore((s) => s.selectRoute);
 
-  // No routes → render a friendly hint.
+  // ---- Empty state: no destination yet ----
+  if (!destination) {
+    return (
+      <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+        <div className="glass-panel-strong mx-auto max-w-md rounded-2xl p-4 text-center shadow-2xl">
+          <div className="mx-auto flex size-10 items-center justify-center rounded-full bg-primary/15">
+            <Navigation className="size-5 text-primary" />
+          </div>
+          <p className="mt-2 text-sm font-semibold text-foreground">Where are you going?</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Search a destination above, or long-press the map to drop a pin.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Empty state: destination set but no origin ----
+  if (!origin) {
+    return (
+      <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+        <div className="glass-panel-strong mx-auto max-w-md rounded-2xl p-4 shadow-2xl">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15">
+              <Crosshair className="size-5 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">Set your starting point</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Destination set. Now we need your location to calculate routes.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button
+              onClick={onLocateMe}
+              disabled={locating}
+              className="h-10 flex-1 gap-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+              {locating ? 'Locating…' : 'Use my GPS'}
+            </Button>
+            <Button
+              onClick={onUseMapCenterAsOrigin}
+              variant="secondary"
+              className="h-10 flex-1 gap-2 rounded-xl"
+            >
+              <MapPin className="size-4" />
+              Use map center
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Empty state: origin + destination set but no routes came back ----
   if (routes.length === 0) {
     return (
       <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
         <div className="glass-panel-strong mx-auto max-w-md rounded-2xl p-4 text-center shadow-2xl">
-          <Navigation className="mx-auto size-6 text-primary" />
-          <p className="mt-2 text-sm font-medium text-foreground">No routes yet</p>
+          <Loader2 className="mx-auto size-5 animate-spin text-primary" />
+          <p className="mt-2 text-sm font-medium text-foreground">Calculating routes…</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Search a destination or long-press the map to drop a pin.
+            Contacting routing engine for 5 alternatives.
           </p>
         </div>
       </div>
@@ -62,7 +131,6 @@ export function RouteSheet() {
           state === 'full' && 'max-h-[85vh]',
         )}
       >
-        {/* Grabber + collapse/expand */}
         <button
           onClick={cycle}
           className="flex w-full items-center justify-center gap-2 py-2 text-muted-foreground hover:text-foreground"
@@ -73,7 +141,6 @@ export function RouteSheet() {
         </button>
 
         <div className="px-3 pb-3">
-          {/* Collapsed: just the recommended CTA */}
           <CollapsedSummary route={recommended} onClick={cycle} />
 
           {state !== 'collapsed' && (
