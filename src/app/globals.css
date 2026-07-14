@@ -1,0 +1,222 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* TrafficMind Dark Navigation Theme - inspired by Google Maps dark mode */
+:root {
+  --radius: 0.875rem;
+
+  /* Map-inspired dark palette (always dark for this navigation app) */
+  --background: oklch(0.13 0.012 240);
+  --foreground: oklch(0.97 0.005 240);
+
+  --card: oklch(0.17 0.015 240);
+  --card-foreground: oklch(0.97 0.005 240);
+
+  --popover: oklch(0.17 0.015 240);
+  --popover-foreground: oklch(0.97 0.005 240);
+
+  /* Accent: bright teal-cyan for navigation / interactive */
+  --primary: oklch(0.78 0.15 195);
+  --primary-foreground: oklch(0.13 0.02 240);
+
+  --secondary: oklch(0.22 0.015 240);
+  --secondary-foreground: oklch(0.95 0.005 240);
+
+  --muted: oklch(0.22 0.012 240);
+  --muted-foreground: oklch(0.65 0.012 240);
+
+  /* Accent: warm amber for highlights / scored routes */
+  --accent: oklch(0.75 0.18 75);
+  --accent-foreground: oklch(0.15 0.02 240);
+
+  --destructive: oklch(0.65 0.22 25);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.78 0.15 195 / 60%);
+
+  /* Chart colors for stats panel */
+  --chart-1: oklch(0.78 0.15 195);   /* teal - primary */
+  --chart-2: oklch(0.75 0.18 75);    /* amber - accent */
+  --chart-3: oklch(0.68 0.20 145);   /* green - low traffic */
+  --chart-4: oklch(0.7 0.22 25);     /* red - high traffic */
+  --chart-5: oklch(0.7 0.18 290);    /* purple - experimental */
+
+  --sidebar: oklch(0.15 0.013 240);
+  --sidebar-foreground: oklch(0.97 0.005 240);
+  --sidebar-primary: oklch(0.78 0.15 195);
+  --sidebar-primary-foreground: oklch(0.13 0.02 240);
+  --sidebar-accent: oklch(0.22 0.015 240);
+  --sidebar-accent-foreground: oklch(0.97 0.005 240);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.78 0.15 195 / 60%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html, body {
+    @apply bg-background text-foreground;
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1, "tnum" 1;
+  }
+}
+
+/* Custom scrollbar - thin, dark, subtle */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 12%);
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: oklch(1 0 0 / 22%);
+}
+
+/* MapLibre container override */
+.maplibregl-map {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+.maplibregl-ctrl-attrib {
+  background: oklch(0.13 0.012 240 / 70%) !important;
+  color: oklch(0.65 0.012 240) !important;
+  backdrop-filter: blur(6px);
+  border-radius: 6px 0 0 0;
+}
+.maplibregl-ctrl-attrib a {
+  color: oklch(0.78 0.15 195) !important;
+}
+.maplibregl-ctrl-attrib-button {
+  background-color: oklch(0.65 0.012 240 / 50%) !important;
+}
+.maplibregl-ctrl-geocoder--icon {
+  display: none;
+}
+.maplibregl-ctrl-geocoder {
+  background: oklch(0.17 0.015 240 / 90%) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid oklch(1 0 0 / 10%);
+  border-radius: 12px !important;
+  min-width: 260px !important;
+}
+.maplibregl-ctrl-geocoder--input {
+  color: oklch(0.97 0.005 240) !important;
+}
+.maplibregl-ctrl-geocoder--input::placeholder {
+  color: oklch(0.55 0.012 240) !important;
+}
+.maplibregl-ctrl-geocoder--result-title {
+  color: oklch(0.95 0.005 240) !important;
+}
+.maplibregl-ctrl-geocoder--result-address {
+  color: oklch(0.6 0.012 240) !important;
+}
+.maplibregl-ctrl-geocoder--result:hover {
+  background: oklch(0.25 0.015 240) !important;
+}
+
+/* Animated pulse marker for current location */
+@keyframes location-pulse {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  70% { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(0.8); opacity: 0; }
+}
+.location-pulse {
+  animation: location-pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+/* Route draw animation */
+@keyframes route-draw {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Glass morphism utility */
+.glass-panel {
+  background: oklch(0.17 0.015 240 / 80%);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid oklch(1 0 0 / 10%);
+}
+
+.glass-panel-strong {
+  background: oklch(0.15 0.013 240 / 92%);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid oklch(1 0 0 / 12%);
+}
+
+/* Subtle entrance animation */
+@keyframes slide-up-fade {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up-fade {
+  animation: slide-up-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slide-down-fade {
+  from { transform: translateY(-12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-down-fade {
+  animation: slide-down-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes scale-fade {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-scale-fade {
+  animation: scale-fade 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
