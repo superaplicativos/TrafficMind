@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "installCommand": "bun install",
+  "regions": ["gru1"],
+  "env": {
+    "TOMTOM_API_KEY": "@tomtom-api-key"
+  },
+  "build": {
+    "env": {
+      "TOMTOM_API_KEY": "@tomtom-api-key"
+    }
+  }
+}

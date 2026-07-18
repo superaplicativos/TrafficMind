@@ -10,6 +10,13 @@
 ![Provider](https://img.shields.io/badge/dados-TomTom%20realtime-F59E0B)
 ![License](https://img.shields.io/badge/license-MIT-10B981)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-339933)
+![Deploy](https://img.shields.io/badge/deploy-Vercel%20ready-000000)
+
+## 📚 Documentação
+
+- **[DEPLOY.md](DEPLOY.md)** — Guia completo de deploy em produção (Vercel + Upstash + Railway)
+- **[docs/INTEGRATIONS.md](docs/INTEGRATIONS.md)** — Referência de integrações externas (TomTom, OSRM, etc.)
+- **[.env.example](.env.example)** — Template de variáveis de ambiente
 
 ---
 
