@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrafficMind — Inception</title>
+<style>
+  :root {
+    --bg: #0F1419;
+    --surface: #1A2332;
+    --surface-2: #243447;
+    --primary: #06B6D4;
+    --accent: #F59E0B;
+    --success: #10B981;
+    --danger: #EF4444;
+    --warning: #F97316;
+    --info: #8B5CF6;
+    --text: #FFFFFF;
+    --text-muted: #8B9BA8;
+    --text-dim: #6B7B89;
+    --border: rgba(255,255,255,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* === NAV === */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(15, 20, 25, 0.92);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .nav-brand {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--primary);
+    letter-spacing: 0.5px;
+  }
+  .nav-tabs {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+    overflow-x: auto;
+  }
+  .nav-tab {
+    padding: 8px 16px;
+    border-radius: 8px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .nav-tab:hover { background: var(--surface); color: var(--text); }
+  .nav-tab.active {
+    background: var(--primary);
+    color: var(--bg);
+  }
+
+  /* === CONTAINER === */
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+  .section {
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  .section.active { display: block; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .section-header {
+    margin-bottom: 32px;
+  }
+  .section-header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .section-header p {
+    color: var(--text-muted);
+    font-size: 15px;
+    max-width: 700px;
+  }
+
+  /* === LEAN CANVAS === */
+  .lean-canvas {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, minmax(180px, 1fr));
+    gap: 12px;
+    min-height: 900px;
+  }
+  .lean-cell {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .lean-cell-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+  }
+  .lean-cell-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .post-it {
+    background: var(--surface-2);
+    border-left: 3px solid var(--primary);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .post-it:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .post-it.amber { border-left-color: var(--accent); }
+  .post-it.green { border-left-color: var(--success); }
+  .post-it.red { border-left-color: var(--danger); }
+  .post-it.purple { border-left-color: var(--info); }
+  .post-it.orange { border-left-color: var(--warning); }
+
+  /* Lean Canvas grid positions */
+  .lc-problem        { grid-column: 1; grid-row: 1 / span 2; }
+  .lc-solution       { grid-column: 2; grid-row: 1 / span 2; }
+  .lc-uvp            { grid-column: 3; grid-row: 1 / span 2; }
+  .lc-unfair         { grid-column: 4; grid-row: 1 / span 2; }
+  .lc-segments       { grid-column: 5; grid-row: 1 / span 2; }
+  .lc-channels       { grid-column: 3; grid-row: 3 / span 1; }
+  .lc-revenue        { grid-column: 5; grid-row: 3 / span 1; }
+  .lc-cost           { grid-column: 4; grid-row: 3 / span 1; }
+  .lc-metrics        { grid-column: 2; grid-row: 3 / span 1; }
+  .lc-key-metrics    { grid-column: 1; grid-row: 3 / span 1; }
+  .lc-bottom         { grid-column: 1 / span 5; grid-row: 4 / span 2; }
+
+  /* === SWOT === */
+  .swot {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 16px;
+    min-height: 700px;
+  }
+  .swot-quadrant {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+  }
+  .swot-quadrant::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 4px;
+    border-radius: 12px 12px 0 0;
+  }
+  .swot-strengths::before { background: var(--success); }
+  .swot-weaknesses::before { background: var(--danger); }
+  .swot-opportunities::before { background: var(--primary); }
+  .swot-threats::before { background: var(--warning); }
+  .swot-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+  .swot-letter {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--bg);
+  }
+  .swot-strengths .swot-letter { background: var(--success); }
+  .swot-weaknesses .swot-letter { background: var(--danger); }
+  .swot-opportunities .swot-letter { background: var(--primary); }
+  .swot-threats .swot-letter { background: var(--warning); }
+  .swot-title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .swot-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .swot-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* === FAZ / NÃO FAZ === */
+  .faz-naofaz {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .faz-column {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    min-height: 600px;
+  }
+  .faz-column-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .faz-column-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 800;
+  }
+  .faz-column.do .faz-column-icon {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--success);
+  }
+  .faz-column.dont .faz-column-icon {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+  }
+  .faz-column-title {
+    font-size: 22px;
+    font-weight: 700;
+  }
+  .faz-column-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .faz-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .faz-item {
+    background: var(--surface-2);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    transition: transform 0.15s;
+  }
+  .faz-item:hover { transform: translateX(2px); }
+  .faz-item-bullet {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .faz-column.do .faz-item-bullet {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success);
+  }
+  .faz-column.dont .faz-item-bullet {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+  }
+  .faz-item-content {
+    flex: 1;
+  }
+  .faz-item-title {
+    font-weight: 600;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .faz-item-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* === BOTTOM ROW (Lean Canvas footer) === */
+  .lc-bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    height: 100%;
+  }
+  .lc-bottom-card {
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 16px;
+    height: 100%;
+  }
+  .lc-bottom-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  /* === RESPONSIVE === */
+  @media (max-width: 1024px) {
+    .lean-canvas {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto;
+      min-height: auto;
+    }
+    .lc-problem, .lc-solution, .lc-uvp, .lc-unfair, .lc-segments,
+    .lc-channels, .lc-revenue, .lc-cost, .lc-metrics, .lc-key-metrics,
+    .lc-bottom {
+      grid-column: auto;
+      grid-row: auto;
+      min-height: 200px;
+    }
+    .lc-bottom { grid-column: 1 / span 2; }
+    .swot, .faz-naofaz {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* === BUG ALERT === */
+  .bug-alert {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .bug-alert-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .bug-alert-content {
+    flex: 1;
+  }
+  .bug-alert-title {
+    font-weight: 700;
+    color: var(--danger);
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+  .bug-alert-text {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+  .bug-alert.resolved {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+  .bug-alert.resolved .bug-alert-title { color: var(--success); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">🧠 TrafficMind</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-section="overview">Visão Geral</button>
+    <button class="nav-tab" data-section="lean">Lean Canvas</button>
+    <button class="nav-tab" data-section="swot">Análise SWOT</button>
+    <button class="nav-tab" data-section="faz">Faz / Não Faz</button>
+    <button class="nav-tab" data-section="bugs">Bugs Corrigidos</button>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- ============ OVERVIEW ============ -->
+  <section class="section active" id="overview">
+    <div class="section-header">
+      <h1>Inception — TrafficMind</h1>
+      <p>Mapeamento estratégico do MVP de navegação inteligente. Lean Canvas, SWOT, escopo Faz/Não Faz e histórico de bugs corrigidos. Documento vivo para alinhamento entre cliente e time técnico.</p>
+    </div>
+
+    <div class="bug-alert resolved">
+      <div class="bug-alert-icon">✅</div>
+      <div class="bug-alert-content">
+        <div class="bug-alert-title">BUG CRÍTICO CORRIGIDO — Mapa do mundo inteiro</div>
+        <div class="bug-alert-text">
+          <strong>Sintoma:</strong> ao calcular rota em cidades fora de São Paulo (ex: Ribeirão Preto), o mapa afastava o zoom para 0.72 e centralizava em (0, 132), mostrando o mundo inteiro.<br>
+          <strong>Causa raiz:</strong> <code>map.fitBounds()</code> do MapLibre GL tem bug conhecido com <code>minZoom</code> em bounds pequenos — ignora o constraint e afasta até zoom 0.<br>
+          <strong>Correção:</strong> substituído <code>fitBounds</code> por <code>flyTo</code> com zoom calculado manualmente via distância Haversine entre origem e destino (7 faixas: mesma rua → país).<br>
+          <strong>Verificado:</strong> Ribeirão Preto (5km) → zoom 13 ✓ | São Paulo → Guarulhos (30km) → zoom 10 ✓
+        </div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px;">
+      <div style="background: var(--surface); border-radius: 12px; padding: 20px; border: 1px solid var(--border);">
+        <div style="font-size: 32px; font-weight: 800; color: var(--primary);">R$ 22k</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Orçamento do inception</div>
+      </div>
+      <div style="background: var(--surface); border-radius: 12px; padding: 20px; border: 1px solid var(--border);">
+        <div style="font-size: 32px; font-weight: 800; color: var(--accent);">5</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Estratégias de rota</div>
+      </div>
+      <div style="background: var(--surface); border-radius: 12px; padding: 20px; border: 1px solid var(--border);">
+        <div style="font-size: 32px; font-weight: 800; color: var(--success);">MVP</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Funcional em preview</div>
+      </div>
+      <div style="background: var(--surface); border-radius: 12px; padding: 20px; border: 1px solid var(--border);">
+        <div style="font-size: 32px; font-weight: 800; color: var(--info);">4-6 sem</div>
+        <div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Prazo entrega backend</div>
+      </div>
+    </div>
+
+    <div style="background: var(--surface); border-radius: 12px; padding: 24px; border: 1px solid var(--border); margin-top: 24px;">
+      <h2 style="font-size: 18px; margin-bottom: 12px;">Como navegar nesta apresentação</h2>
+      <p style="color: var(--text-muted); font-size: 14px; line-height: 1.7;">
+        Use as abas no topo para alternar entre as seções. Cada post-it representa uma ideia, problema, oportunidade ou decisão. As cores indicam o tipo de conteúdo (verde = positivo, vermelho = risco, âmbar = atenção, roxo = diferencial, laranja = ação).
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ LEAN CANVAS ============ -->
+  <section class="section" id="lean">
+    <div class="section-header">
+      <h1>Lean Canvas</h1>
+      <p>Modelo de negócio de uma página inspirado no Ash Maurya. Nove blocos cobrem problema, solução, métricas-chave, proposta de valor única, vantagem injusta, canais, segmentos de clientes, estrutura de custos e fontes de receita.</p>
+    </div>
+
+    <div class="lean-canvas">
+
+      <!-- Problema -->
+      <div class="lean-cell lc-problem">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(239,68,68,0.2); color: var(--danger);">!</div>
+          Problema
+        </div>
+        <div class="post-it red">Waze otimiza só por tempo — ignora combustível, segurança, manobras</div>
+        <div class="post-it red">Google Maps não aprende preferências do motorista</div>
+        <div class="post-it red">Apps de navegação são genéricos — não servem para frotas B2B</div>
+        <div class="post-it red">Não existe API white-label de roteamento multi-critério no Brasil</div>
+        <div class="post-it orange">Trânsito real custa R$ 2-8k/mês — barreira para pequenas empresas</div>
+      </div>
+
+      <!-- Solução -->
+      <div class="lean-cell lc-solution">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(16,185,129,0.2); color: var(--success);">✓</div>
+          Solução
+        </div>
+        <div class="post-it green">Score multi-critério: tempo + trânsito + cruzamentos + complexidade</div>
+        <div class="post-it green">5 estratégias simultâneas: mais rápida, curta, cênica, menos curvas, IA</div>
+        <div class="post-it green">Slot de IA preparado (TrafficPredictor) — plugar ML sem reescrever</div>
+        <div class="post-it green">API REST com OpenAPI — white-label para B2B</div>
+        <div class="post-it green">Simulação de trânsito determinística (custo zero no MVP)</div>
+      </div>
+
+      <!-- UVP -->
+      <div class="lean-cell lc-uvp">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(245,158,11,0.2); color: var(--accent);">★</div>
+          Proposta de Valor Única
+        </div>
+        <div class="post-it amber" style="font-size: 15px; font-weight: 600;">
+          "Navegação inteligente que ranqueia rotas por um score transparente — não só a mais rápida."
+        </div>
+        <div class="post-it">Para motoristas que querem escolher com base em múltiplos critérios</div>
+        <div class="post-it">Para empresas que precisam otimizar por custo, não por tempo</div>
+        <div class="post-it">Diferencial arquitetural: score ajustável por cliente</div>
+      </div>
+
+      <!-- Vantagem Injusta -->
+      <div class="lean-cell lc-unfair">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(139,92,246,0.2); color: var(--info);">⚡</div>
+          Vantagem Injusta
+        </div>
+        <div class="post-it purple">Clean Architecture — trocar componentes sem reescrever</div>
+        <div class="post-it purple">Slot de IA real (interface TrafficPredictor) — pronto para ML</div>
+        <div class="post-it purple">Stack 100% open-source — zero licença para escalar</div>
+        <div class="post-it purple">Docker Compose — deploy em qualquer VPS, sem lock-in cloud</div>
+      </div>
+
+      <!-- Segmentos -->
+      <div class="lean-cell lc-segments">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(6,182,212,0.2); color: var(--primary);">👥</div>
+          Segmentos de Cliente
+        </div>
+        <div class="post-it">B2C: motoristas de app (Uber, 99) que querem economizar combustível</div>
+        <div class="post-it">B2B: empresas de delivery e logística urbana</div>
+        <div class="post-it">B2B: transportadoras de pequeno porte (até 50 veículos)</div>
+        <div class="post-it">B2G: prefeituras que querem painel de trânsito customizado</div>
+        <div class="post-it amber">Early adopters: 3-5 empresas de delivery em SP/Ribeirão</div>
+      </div>
+
+      <!-- Canais -->
+      <div class="lean-cell lc-channels">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(6,182,212,0.2); color: var(--primary);">📡</div>
+          Canais
+        </div>
+        <div class="post-it">App web PWA (mobile-first, sem loja de apps)</div>
+        <div class="post-it">API REST documentada (Swagger/OpenAPI)</div>
+        <div class="post-it">GitHub público para devs integrarem</div>
+      </div>
+
+      <!-- Métricas-chave -->
+      <div class="lean-cell lc-metrics">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(6,182,212,0.2); color: var(--primary);">📊</div>
+          Métricas-Chave
+        </div>
+        <div class="post-it">Rotas calculadas por dia (alvo MVP: 100)</div>
+        <div class="post-it">Taxa de conversão busca → rota calculada</div>
+        <div class="post-it">Tempo médio de resposta da API (&lt; 1s)</div>
+      </div>
+
+      <!-- Estrutura de Custo -->
+      <div class="lean-cell lc-cost">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(239,68,68,0.2); color: var(--danger);">💰</div>
+          Custo
+        </div>
+        <div class="post-it red">VPS 4vCPU/8GB: R$ 200-400/mês</div>
+        <div class="post-it red">Trânsito real (opcional): R$ 2-8k/mês</div>
+        <div class="post-it">Desenvolvimento: R$ 22k (orçamento)</div>
+      </div>
+
+      <!-- Fontes de Receita -->
+      <div class="lean-cell lc-revenue">
+        <div class="lean-cell-header">
+          <div class="lean-cell-icon" style="background: rgba(16,185,129,0.2); color: var(--success);">💵</div>
+          Receita
+        </div>
+        <div class="post-it green">B2B API: R$ 0.05-0.50 por rota</div>
+        <div class="post-it green">B2B mensalidade: R$ 500-2k/mês por slot de 50 veículos</div>
+        <div class="post-it green">B2G contrato anual: R$ 50-200k/ano por cidade</div>
+      </div>
+
+      <!-- Bottom: problema existente + solução de alto nível -->
+      <div class="lean-cell lc-bottom">
+        <div class="lc-bottom-grid">
+          <div class="lc-bottom-card">
+            <div class="lc-bottom-title">🔧 Problemas Existentes (Alternativas Atuais)</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="post-it">Waze — ótimo trânsito real, mas otimiza só tempo. Fechado, sem API.</div>
+              <div class="post-it">Google Maps — ubíquo, mas caro (API), genérico, não personalizável</div>
+              <div class="post-it">HERE / TomTom — profissional, mas R$ 2-8k/mês, foco enterprise</div>
+              <div class="post-it">SigTrack / Routeasy — bons para frotas, mas caros e complexos</div>
+            </div>
+          </div>
+          <div class="lc-bottom-card">
+            <div class="lc-bottom-title">🚀 Solução de Alto Nível</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="post-it green">App web mobile-first com 5 rotas alternativas scoreadas</div>
+              <div class="post-it green">API REST white-label para integração B2B</div>
+              <div class="post-it green">Painel admin para gestão de vias monitoradas</div>
+              <div class="post-it green">Slot de IA para predição de trânsito (futuro)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ SWOT ============ -->
+  <section class="section" id="swot">
+    <div class="section-header">
+      <h1>Análise SWOT</h1>
+      <p>Avaliação estratégica de Forças, Fraquezas, Oportunidades e Ameaças. Use para alinhar expectativas com o cliente e priorizar o roadmap.</p>
+    </div>
+
+    <div class="swot">
+
+      <!-- Strengths -->
+      <div class="swot-quadrant swot-strengths">
+        <div class="swot-header">
+          <div class="swot-letter">S</div>
+          <div>
+            <div class="swot-title">Forças</div>
+            <div class="swot-subtitle">Strengths — internas, positivas</div>
+          </div>
+        </div>
+        <div class="swot-items">
+          <div class="post-it green">Arquitetura Clean — modular, fácil de evoluir sem reescrita</div>
+          <div class="post-it green">Score multi-critério transparente — diferencial vs Waze</div>
+          <div class="post-it green">5 estratégias simultâneas — poucos apps fazem isso</div>
+          <div class="post-it green">Slot de IA pronto (TrafficPredictor) — plugar ML sem reescrever</div>
+          <div class="post-it green">Stack 100% open-source — zero custo de licença</div>
+          <div class="post-it green">UI em português com fluxo guiado — acessível para leigo</div>
+          <div class="post-it green">Docker Compose completo — deploy em qualquer VPS</div>
+          <div class="post-it green">API documentada (OpenAPI 3.0) — pronta para integração</div>
+        </div>
+      </div>
+
+      <!-- Weaknesses -->
+      <div class="swot-quadrant swot-weaknesses">
+        <div class="swot-header">
+          <div class="swot-letter">W</div>
+          <div>
+            <div class="swot-title">Fraquezas</div>
+            <div class="swot-subtitle">Weaknesses — internas, negativas</div>
+          </div>
+        </div>
+        <div class="swot-items">
+          <div class="post-it red">Trânsito é SIMULADO — não real. Caro para integrar (R$ 2-8k/mês)</div>
+          <div class="post-it red">IA é MOCK — não há modelo de ML real ainda</div>
+          <div class="post-it red">OSRM público tem rate limit — não sustenta produção</div>
+          <div class="post-it red">Sem autenticação / usuários / favoritos ainda</div>
+          <div class="post-it red">Web-only — sem app nativo (precisa Capacitor para lojas)</div>
+          <div class="post-it red">Sem dados históricos — não dá pra treinar ML ainda</div>
+          <div class="post-it red">Backend NestJS é esqueleto — não está em runtime</div>
+          <div class="post-it red">Postgres/Redis configurados mas não usados no MVP</div>
+        </div>
+      </div>
+
+      <!-- Opportunities -->
+      <div class="swot-quadrant swot-opportunities">
+        <div class="swot-header">
+          <div class="swot-letter">O</div>
+          <div>
+            <div class="swot-title">Oportunidades</div>
+            <div class="swot-subtitle">Opportunities — externas, positivas</div>
+          </div>
+        </div>
+        <div class="swot-items">
+          <div class="post-it">Mercado B2B de logística urbana cresce 15% ao ano no Brasil</div>
+          <div class="post-it">Delivery pós-pandemia: 60% das empresas precisam otimizar rotas</div>
+          <div class="post-it">APIs de trânsito (TomTom, Here) têm tier gratuito para POC</div>
+          <div class="post-it">Cidades médias (Ribeirão, Campinas) sem solução local</div>
+          <div class="post-it">VEs (veículos elétricos) precisam de roteamento diferente</div>
+          <div class="post-it">LGPD favorece soluções locais vs Google/Waze</div>
+          <div class="post-it">Smart cities: prefeituras com budget para painéis de trânsito</div>
+          <div class="post-it">Open data: CPTM, SPTrans liberando dados via API</div>
+        </div>
+      </div>
+
+      <!-- Threats -->
+      <div class="swot-quadrant swot-threats">
+        <div class="swot-header">
+          <div class="swot-letter">T</div>
+          <div>
+            <div class="swot-title">Ameaças</div>
+            <div class="swot-subtitle">Threats — externas, negativas</div>
+          </div>
+        </div>
+        <div class="swot-items">
+          <div class="post-it orange">Waze tem 150M usuários — efeito de rede inquebrável</div>
+          <div class="post-it orange">Google Maps tem API madura e marketing infinito</div>
+          <div class="post-it orange">TomTom/Here podem lançar tier grátis e comer o mercado</div>
+          <div class="post-it orange">OSRM público pode descontinuar ou rate-limitar mais</div>
+          <div class="post-it orange">Cliente pode esperar "Waze por 22k" — desalinhamento de expectativa</div>
+          <div class="post-it orange">Dados abertos podem ser descontinuados por mudança política</div>
+          <div class="post-it orange">Concorrentes brasileiros (Routeasy, SigTrack) já têm escala</div>
+          <div class="post-it orange">Custo de trânsito real pode inviabilizar B2C gratuito</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ FAZ / NÃO FAZ ============ -->
+  <section class="section" id="faz">
+    <div class="section-header">
+      <h1>Faz / Não Faz</h1>
+      <p>Escopo honesto do que está incluído no orçamento de R$ 22.000 e do que está explicitamente excluído. Use esta lista para alinhar expectativas com o cliente antes de fechar.</p>
+    </div>
+
+    <div class="faz-naofaz">
+
+      <!-- FAZ -->
+      <div class="faz-column do">
+        <div class="faz-column-header">
+          <div class="faz-column-icon">✓</div>
+          <div>
+            <div class="faz-column-title">FAZ</div>
+            <div class="faz-column-subtitle">Incluído nos R$ 22k</div>
+          </div>
+        </div>
+        <div class="faz-list">
+          <div class="faz-item">
+            <div class="faz-item-bullet">✓</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">MVP atual funcional</div>
+              <div class="faz-item-desc">App web mobile-first com mapa, busca, GPS, 5 rotas alternativas e score multi-critério. Já desenvolvido e testado.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✓</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Backend NestJS rodando em Docker</div>
+              <div class="faz-item-desc">Substituir API routes do Next.js pelo NestJS com persistência em PostgreSQL + PostGIS. Container orquestrado via docker-compose.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✓</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Cache Redis para rotas</div>
+              <div class="faz-item-desc">Cache de respostas de rota por par origem-destino com TTL de 5 minutos. Reduz custo de OSRM em 80%.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✓</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">OSRM self-hosted (São Paulo)</div>
+              <div class="faz-item-desc">Subir container OSRM com extract de São Paulo (sudeste-latest.osm.pbf). Elimina dependência do serviço público.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✓</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Deploy em VPS de produção</div>
+              <div class="faz-item-desc">Configurar VPS (DigitalOcean ou Hetzner) com docker-compose up, domínio, SSL via Let's Encrypt, e proxy reverso (Caddy).</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✓</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Documentação de handover</div>
+              <div class="faz-item-desc">README completo, runbook de operação, diagramas de arquitetura e guia de como adicionar novas estratégias de rota.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✓</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Slot de IA preparado (mock)</div>
+              <div class="faz-item-desc">Interface TrafficPredictor implementada e exercitada com mock. Pronto para plugar ML real no futuro sem reescrever.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✓</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">1 mês de suporte pós-entrega</div>
+              <div class="faz-item-desc">Bug fixes críticos, dúvidas de deploy, pequenos ajustes de configuração. Não inclui novas features.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- NÃO FAZ -->
+      <div class="faz-column dont">
+        <div class="faz-column-header">
+          <div class="faz-column-icon">✗</div>
+          <div>
+            <div class="faz-column-title">NÃO FAZ</div>
+            <div class="faz-column-subtitle">Explicitamente excluído</div>
+          </div>
+        </div>
+        <div class="faz-list">
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">IA de predição real</div>
+              <div class="faz-item-desc">Modelo de Machine Learning requer dados históricos (que não temos) + 80h+ de engenharia de dados. Orçamento: R$ 70-85k adicional.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Trânsito em tempo real</div>
+              <div class="faz-item-desc">Integração com TomTom/Here/Google custa R$ 2-8k/mês. Cliente decide se paga. MVP mantém simulação determinística.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">App nativo iOS/Android</div>
+              <div class="faz-item-desc">PWA é suficiente para MVP. Wrapper Capacitor para lojas exige outro contrato (R$ 15-20k adicional).</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Sistema de autenticação</div>
+              <div class="faz-item-desc">Login, usuários, favoritos, histórico. Exige NextAuth + modelagem de dados. Orçamento: R$ 8-12k adicional.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Crowdsourcing de trânsito</div>
+              <div class="faz-item-desc">Usuários reportando acidentes/polícia/obras. Exige backend de moderação + app mobile. Roadmap de longo prazo.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Painel administrativo</div>
+              <div class="faz-item-desc">Gestão de vias monitoradas, usuários, métricas. Exige frontend separado + RBAC. Roadmap de médio prazo.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Otimização para VE (elétricos)</div>
+              <div class="faz-item-desc">Slot já preparado no scorer, mas sem implementação. Exige integração com rede de carregadoras. Roadmap de longo prazo.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Escala para milhões de usuários</div>
+              <div class="faz-item-desc">Arquitetura atual aguenta ~1.000 usuários simultâneos. Para escala Waze, precisa de Kubernetes, sharding, CDN global — contrato separado.</div>
+            </div>
+          </div>
+          <div class="faz-item">
+            <div class="faz-item-bullet">✗</div>
+            <div class="faz-item-content">
+              <div class="faz-item-title">Marketing / aquisição de usuários</div>
+              <div class="faz-item-desc">Entrega é técnica. Aquisição de clientes B2B ou B2C é responsabilidade do cliente. Podemos indicar parceiros.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 12px; padding: 20px; margin-top: 24px;">
+      <div style="font-weight: 700; color: var(--accent); margin-bottom: 8px; font-size: 15px;">⚠️ Condições comerciais</div>
+      <div style="color: var(--text-muted); font-size: 14px; line-height: 1.7;">
+        <strong>Prazo:</strong> 4-6 semanas após kickoff. <strong>Payment milestone:</strong> 40% upfront, 30% na entrega do backend, 30% no deploy + handover. <strong>Validação aceita:</strong> deploy em VPS do cliente + documento de handover assinado. <strong>Fora do escopo:</strong> qualquer item listado em "NÃO FAZ" exige contrato adicional.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BUGS ============ -->
+  <section class="section" id="bugs">
+    <div class="section-header">
+      <h1>Bugs Corrigidos</h1>
+      <p>Histórico dos bugs reportados durante o desenvolvimento e a correção aplicada em cada um. Importante para o alinhamento técnico com o cliente.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+
+      <!-- Bug 1: Mapa do mundo -->
+      <div class="bug-alert resolved">
+        <div class="bug-alert-icon">✅</div>
+        <div class="bug-alert-content">
+          <div class="bug-alert-title">BUG #1 — Mapa do mundo inteiro em cidades fora de SP</div>
+          <div class="bug-alert-text">
+            <strong>Reportado por:</strong> cliente (testando em Ribeirão Preto).<br>
+            <strong>Sintoma:</strong> ao calcular rota com origem/destino fora de São Paulo capital, o mapa afastava para zoom 0.72 e centralizava em (lat=0, lng=132), mostrando o mundo inteiro.<br>
+            <strong>Causa raiz:</strong> <code>map.fitBounds()</code> do MapLibre GL tem bug conhecido onde <code>minZoom</code> é ignorado em bounds pequenos. Quando origem e destino estão na mesma cidade (ex: Ribeirão Preto, ~5km), o zoom caía para próximo de zero.<br>
+            <strong>Correção:</strong> substituído <code>fitBounds</code> por <code>flyTo</code> com zoom calculado manualmente via distância Haversine. Sete faixas: mesma rua (zoom 16) → país (zoom 6). Centro = midpoint entre origem e destino.<br>
+            <strong>Verificado:</strong> Ribeirão Preto (5km) → zoom 13 ✓ | SP → Guarulhos (30km) → zoom 10 ✓ | Av. Paulista → Paulista (0m) → zoom 16 ✓
+          </div>
+        </div>
+      </div>
+
+      <!-- Bug 2: containerRef -->
+      <div class="bug-alert resolved">
+        <div class="bug-alert-icon">✅</div>
+        <div class="bug-alert-content">
+          <div class="bug-alert-title">BUG #2 — Clique no endereço não setava destino</div>
+          <div class="bug-alert-text">
+            <strong>Reportado por:</strong> cliente ("clico num lugar vai pra outro não tá funcionando").<br>
+            <strong>Sintoma:</strong> clique em resultado de busca fechava dropdown mas não definia destino.<br>
+            <strong>Causa raiz:</strong> <code>containerRef</code> declarado mas nunca atribuído a uma div. Handler de outside-click tratava qualquer clique como "fora" e fechava o dropdown antes do <code>onClick</code>.<br>
+            <strong>Correção:</strong> adicionar <code>ref={containerRef}</code> na div externa do SearchPanel.
+          </div>
+        </div>
+      </div>
+
+      <!-- Bug 3: Estados vazios -->
+      <div class="bug-alert resolved">
+        <div class="bug-alert-icon">✅</div>
+        <div class="bug-alert-content">
+          <div class="bug-alert-title">BUG #3 — "No routes yet" sem contexto</div>
+          <div class="bug-alert-text">
+            <strong>Reportado por:</strong> cliente ("não consigo confirmar não gera a rota").<br>
+            <strong>Sintoma:</strong> ao selecionar destino, tela mostrava "No routes yet" sem explicar que faltava origem.<br>
+            <strong>Causa raiz:</strong> RouteSheet tinha só um estado vazio genérico.<br>
+            <strong>Correção:</strong> três estados contextuais (sem destino / com destino sem origem / calculando) + auto-request de GPS ao setar destino + botão fallback "Usar centro do mapa".
+          </div>
+        </div>
+      </div>
+
+      <!-- Bug 4: Toasts duplicados -->
+      <div class="bug-alert resolved">
+        <div class="bug-alert-icon">✅</div>
+        <div class="bug-alert-content">
+          <div class="bug-alert-title">BUG #4 — 8 toasts duplicados de erro de GPS</div>
+          <div class="bug-alert-text">
+            <strong>Sintoma:</strong> ao negar GPS, 8 notificações idênticas empilhavam.<br>
+            <strong>Causa raiz:</strong> <code>useEffect</code> tinha objeto <code>geo</code> como dependência, disparando a cada render.<br>
+            <strong>Correção:</strong> usar <code>id</code> estável no <code>toast.error</code> (Sonner substitui em vez de empilhar) + depender apenas de <code>geo.error</code>.
+          </div>
+        </div>
+      </div>
+
+      <!-- Bug 5: Jargão -->
+      <div class="bug-alert resolved">
+        <div class="bug-alert-icon">✅</div>
+        <div class="bug-alert-content">
+          <div class="bug-alert-title">BUG #5 — UI em inglês com jargão técnico</div>
+          <div class="bug-alert-text">
+            <strong>Reportado por:</strong> cliente ("continua não funcional e fácil de mexer pra um leigo").<br>
+            <strong>Sintoma:</strong> UI em inglês com termos como "long-press", "crosshair", "GPS", "map center".<br>
+            <strong>Correção:</strong> tradução completa para português, remoção de jargão, botões grandes com texto, fluxo guiado de 3 passos (1 → 2 → ✓), dicas contextuais.
+          </div>
+        </div>
+      </div>
+
+      <!-- Bug 6: OSRM rate limit -->
+      <div class="bug-alert resolved">
+        <div class="bug-alert-icon">✅</div>
+        <div class="bug-alert-content">
+          <div class="bug-alert-title">BUG #6 — Primeira requisição de rota voltava vazia</div>
+          <div class="bug-alert-text">
+            <strong>Sintoma:</strong> POST /api/route às vezes retornava <code>routes: []</code> na primeira tentativa.<br>
+            <strong>Causa raiz:</strong> OSRM público tem rate limit por IP e responde com <code>code: "Ok"</code> mas <code>routes: []</code> quando sobrecarregado.<br>
+            <strong>Correção:</strong> retry interno com backoff de 200ms na primeira falha.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const tabs = document.querySelectorAll('.nav-tab');
+  const sections = document.querySelectorAll('.section');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.section;
+      tabs.forEach(t => t.classList.remove('active'));
+      sections.forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(target).classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+</script>
+
+</body>
+</html>

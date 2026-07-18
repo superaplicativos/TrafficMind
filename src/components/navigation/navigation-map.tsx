@@ -232,16 +232,28 @@ export function NavigationMap({ traffic, onMapLongPress }: NavigationMapProps) {
 
     // Frame both origin (if any) and destination.
     if (origin) {
-      const bounds = new maplibregl.LngLatBounds(
-        [origin.lng, origin.lat],
-        [destination.lng, destination.lat],
-      );
-      // maxZoom alto + padding maior em mobile pra não afastar demais.
-      // Antes o fitBounds afastava o zoom em rotas longas, dando a impressão
-      // de "mapa do mundo inteiro".
-      map.fitBounds(bounds, {
-        padding: { top: 180, bottom: 280, left: 60, right: 60 },
-        maxZoom: 14,
+      // Calcula distância entre origem e destino.
+      const dist = haversineMeters(origin, destination);
+
+      // Lógica de zoom baseada em distância. fitBounds do MapLibre tem bugs
+      // conhecidos com minZoom em bounds pequenos (ignora o constraint e
+      // afasta até zoom 0, mostrando o mundo inteiro). Solução: calcular
+      // o zoom manualmente baseado na distância haversine e fazer flyTo
+      // para o centro do segmento.
+      const midLat = (origin.lat + destination.lat) / 2;
+      const midLng = (origin.lng + destination.lng) / 2;
+      let zoom: number;
+      if (dist < 500) zoom = 16;        // mesma rua
+      else if (dist < 1500) zoom = 15;  // mesmo bairro
+      else if (dist < 5000) zoom = 13;  // mesma cidade
+      else if (dist < 20000) zoom = 12; // cidades vizinhas
+      else if (dist < 60000) zoom = 10; // região metropolitana
+      else if (dist < 200000) zoom = 8; // estado
+      else zoom = 6;                     // país+
+
+      map.flyTo({
+        center: [midLng, midLat],
+        zoom,
         duration: 800,
       });
     } else {
@@ -378,6 +390,21 @@ export function NavigationMap({ traffic, onMapLongPress }: NavigationMapProps) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Distância em metros entre dois pontos WGS84 (fórmula de Haversine).
+ * Usada para decidir entre fitBounds e flyTo quando origem e destino
+ * estão muito próximos (evita o bug do "mapa do mundo inteiro").
+ */
+function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371000; // raio da Terra em metros
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
 
 function trafficColor(level: number): string {
   if (level < 30) return '#10b981'; // green
