@@ -57,3 +57,12 @@ server.log
 .env.local
 .env.production
 .env.*.local
+
+# Sandbox artifacts (não fazer parte do repositório público)
+/agent-ctx/
+/.zscripts/
+/backend/node_modules/
+/skills/
+/download/trafficmind/*.png
+/.next/
+/standalone/

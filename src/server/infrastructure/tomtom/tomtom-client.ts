@@ -137,21 +137,29 @@ export class TomTomClient {
   }
 
   /**
-   * Calcula múltiplas rotas (uma por estratégia) em paralelo.
-   * Falhas isoladas viram null e são filtradas — o caller decide o que fazer
-   * com o subconjunto que retornou.
+   * Calcula múltiplas rotas (uma por estratégia).
+   *
+   * IMPORTANTE: sequential em vez de Promise.all. 5 requests paralelas ao
+   * TomTom + compilação Turbopack estava estourando memória do sandbox.
+   * Sequential é ~1s mais lento (5 × 700ms vs 700ms paralelo) mas estável.
+   * Em produção (com mais RAM), pode voltar pra Promise.all.
+   * Falhas isoladas viram null e são filtradas.
    */
   async calculateRoutes(
     origin: GeoCoordinate,
     destination: GeoCoordinate,
     strategies: RouteStrategy[],
   ): Promise<Route[]> {
-    const results = await Promise.all(
-      strategies.map((s) =>
-        this.calculateRoute(origin, destination, s).catch(() => null),
-      ),
-    );
-    return results.filter((r): r is Route => r !== null);
+    const results: Route[] = [];
+    for (const s of strategies) {
+      try {
+        const r = await this.calculateRoute(origin, destination, s);
+        if (r) results.push(r);
+      } catch {
+        // estratégia isolada falhou — ignora
+      }
+    }
+    return results;
   }
 
   // ==========================================================================
@@ -199,15 +207,19 @@ export class TomTomClient {
 
   /**
    * Amostra de tráfego para uma região. O endpoint Flow não suporta bbox
-   * diretamente, então amostramos N pontos no bounding box. O N é mantido
-   * pequeno (default 9 = grid 3×3) para respeitar rate limits do free tier.
+   * diretamente, então amostramos N pontos no bounding box.
+   *
+   * IMPORTANTE: N reduzido de 9 para 4 (grid 2×2) porque 9 requests paralelas
+   * + compilação de rota + fetch de mapa estava estourando memória do
+   * sandbox (3.9GB) e matando o next-server. 4 amostras é suficiente para
+   * dar uma ideia do trânsito regional sem overload.
    */
-  async getFlowForRegion(bounds: GeoBounds, samples = 9): Promise<TrafficReading[]> {
-    const latStep = (bounds.north - bounds.south) / 3;
-    const lngStep = (bounds.east - bounds.west) / 3;
+  async getFlowForRegion(bounds: GeoBounds, samples = 4): Promise<TrafficReading[]> {
+    const latStep = (bounds.north - bounds.south) / 2;
+    const lngStep = (bounds.east - bounds.west) / 2;
     const points: GeoCoordinate[] = [];
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < 3; j++) {
+    for (let i = 0; i < 2; i++) {
+      for (let j = 0; j < 2; j++) {
         if (points.length >= samples) break;
         points.push({
           lat: bounds.south + latStep * (i + 0.5),
@@ -215,8 +227,13 @@ export class TomTomClient {
         });
       }
     }
-    const results = await Promise.all(points.map((p) => this.getFlowAt(p)));
-    return results.filter((r): r is TrafficReading => r !== null);
+    // Sequential em vez de Promise.all para reduzir pico de memória.
+    const results: TrafficReading[] = [];
+    for (const p of points) {
+      const r = await this.getFlowAt(p);
+      if (r) results.push(r);
+    }
+    return results;
   }
 
   // ==========================================================================
