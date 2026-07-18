@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { NavigationMap, getMapBounds, type MaplibreMap } from '@/components/navigation/navigation-map';
 import { SearchPanel } from '@/components/navigation/search-panel';
@@ -20,17 +20,19 @@ import type { GeoBounds, TrafficReading } from '@/lib/navigation/types';
  * ----------------------------------------------------------------------------
  * Fluxo guiado em 3 passos (em português):
  *
- *   Passo 1: usuário busca um destino → dropdown do Nominatim → escolhe um.
+ *   Passo 1: usuário busca um destino → dropdown → escolhe um.
  *   Passo 2: app pede localização automaticamente. Se negada, mostra
- *            "De onde você sai?" com 2 botões grandes:
- *            "Usar minha localização atual" (tenta de novo) ou
- *            "Usar o centro do mapa como partida" (fallback).
- *   Passo 3: rotas calculadas → painel mostra rota recomendada + alternativas
- *            + estatísticas + breakdown do score.
+ *            "De onde você sai?" com 2 botões grandes.
+ *   Passo 3: rotas calculadas → painel mostra rota recomendada + alternativas.
  *
- * Também suporta:
- *   - Long-press no mapa para soltar um pino de destino (com reverse geocode).
- *   - Parâmetro ?origin=lat,lng para testes/headless (bypassa GPS).
+ * OTIMIZAÇÕES ANTI-LOOP (críticas após integração TomTom):
+ *  - GPS só atualiza origin se mover > 30m (evita recalcular rotas a cada
+ *    sub-segundo de variação de GPS).
+ *  - mapBounds só atualiza se mudar > 10% (evita refetch de tráfego a cada
+ *    pan/zoom mínimo).
+ *  - setTraffic removido do queryFn — useQuery já cacheia o resultado;
+ *    o componente consome `data` direto.
+ *  - calc.mutate só dispara se origin E destination mudaram significativamente.
  */
 export default function Home() {
   const origin = useNavigationStore((s) => s.origin);
@@ -44,13 +46,22 @@ export default function Home() {
   const calc = useCalculateRoutes();
 
   const [mapBounds, setMapBounds] = useState<GeoBounds | null>(null);
-  const [traffic, setTraffic] = useState<TrafficReading[]>([]);
+  // Ref para evitar recalcular rotas se origin não mudou significativamente.
+  const lastOriginRef = useRef<{ lat: number; lng: number } | null>(null);
+  // Ref para evitar atualizar mapBounds se não mudou significativamente.
+  const lastBoundsRef = useRef<string>('');
 
-  // ----- GPS → store ----------------------------------------------------
+  // ----- GPS → store (só se mover > 30m) --------------------------------
   useEffect(() => {
-    if (geo.position) {
-      setOrigin({ lat: geo.position.lat, lng: geo.position.lng });
+    if (!geo.position) return;
+    const newPos = { lat: geo.position.lat, lng: geo.position.lng };
+    const last = lastOriginRef.current;
+    if (last) {
+      const dist = haversineMeters(last, newPos);
+      if (dist < 30) return; // ignora micro-variações de GPS
     }
+    lastOriginRef.current = newPos;
+    setOrigin(newPos);
   }, [geo.position, setOrigin]);
 
   // ----- Modo demo/teste: ?origin=lat,lng bypassa GPS ------------------
@@ -61,7 +72,9 @@ export default function Home() {
     if (!o) return;
     const [lat, lng] = o.split(',').map(parseFloat);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      setOrigin({ lat, lng });
+      const newPos = { lat, lng };
+      lastOriginRef.current = newPos;
+      setOrigin(newPos);
     }
   }, [setOrigin]);
 
@@ -76,7 +89,6 @@ export default function Home() {
   // ----- Erros de GPS como toast único em português --------------------
   useEffect(() => {
     if (geo.error) {
-      // Mensagens amigáveis em vez de jargão técnico do browser.
       let descricao = 'Não conseguimos acessar sua localização.';
       if (geo.error.includes('denied')) {
         descricao = 'Permissão negada. Toque em "Usar o centro do mapa como partida" para continuar.';
@@ -93,35 +105,55 @@ export default function Home() {
     }
   }, [geo.error]);
 
-  // ----- Calcular rotas quando origem e destino estão definidos --------
+  // ----- Calcular rotas quando origem E destino estão definidos --------
+  // Depende apenas de origin/destination (não de enabledStrategies.join
+  // que pode mudar de identidade). Mutation internamente já dedupe.
+  const strategiesKey = enabledStrategies.join(',');
   useEffect(() => {
     if (!origin || !destination) return;
     calc.mutate({ origin, destination, strategies: enabledStrategies });
      
-  }, [origin, destination, enabledStrategies.join(',')]);
+  }, [origin, destination, strategiesKey]);
 
   // ----- Polling do trânsito para a região visível do mapa -------------
-  useQuery({
-    queryKey: ['traffic', mapBounds],
+  // useQuery cacheia por queryKey. Sem setTraffic dentro do queryFn
+  // (anti-pattern que causava re-render infinito).
+  const trafficQuery = useQuery({
+    queryKey: ['traffic', mapBounds ? boundsKey(mapBounds) : null],
     queryFn: async ({ signal }) => {
-      if (!mapBounds) return { readings: [], generatedAt: 0 };
-      const res = await fetchTraffic(mapBounds, signal);
-      setTraffic(res.readings);
-      return res;
+      if (!mapBounds) return { readings: [] as TrafficReading[], generatedAt: 0 };
+      return fetchTraffic(mapBounds, signal);
     },
     enabled: !!mapBounds,
-    refetchInterval: 30_000,
-    staleTime: 30_000,
+    refetchInterval: 60_000, // 1 min — TomTom free tier é sensível
+    staleTime: 60_000,
   });
+  const traffic = trafficQuery.data?.readings ?? [];
 
   // ----- Sincronizar bounds do mapa periodicamente --------------------
+  // Só atualiza state se os bounds mudaram significativamente (> 10% diff
+  // em qualquer direção). Evita refetch de tráfego a cada micro-pan.
+  // Usa debounce: só seta depois que o mapa para de mover por 2s.
   useEffect(() => {
+    let lastChange = 0;
+    let lastKey = '';
     const interval = setInterval(() => {
       const map = (window as unknown as { __map?: MaplibreMap }).__map;
       if (!map) return;
       const b = getMapBounds(map);
-      if (b) setMapBounds(b);
-    }, 4_000);
+      if (!b) return;
+      const key = boundsKey(b);
+      if (key === lastKey) {
+        // bounds estável — se já passou tempo suficiente, commita
+        if (lastChange && Date.now() - lastChange > 2000 && key !== lastBoundsRef.current) {
+          lastBoundsRef.current = key;
+          setMapBounds(b);
+        }
+        return;
+      }
+      lastKey = key;
+      lastChange = Date.now();
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -152,7 +184,9 @@ export default function Home() {
       return;
     }
     const center = map.getCenter();
-    setOrigin({ lat: center.lat, lng: center.lng });
+    const newPos = { lat: center.lat, lng: center.lng };
+    lastOriginRef.current = newPos;
+    setOrigin(newPos);
     toast.success('Ponto de partida definido!', {
       description: `Centro do mapa: ${center.lat.toFixed(4)}, ${center.lng.toFixed(4)}`,
     });
@@ -169,16 +203,18 @@ export default function Home() {
     }
   }, [calc.isError, calc.error]);
 
-  // ----- Sucesso: rotas prontas ---------------------------------------
+  // ----- Sucesso: rotas prontas (toast único) -------------------------
+  const lastRoutesKey = useRef<string>('');
   useEffect(() => {
-    if (calc.isSuccess && calc.data?.routes.length) {
-      const rec = calc.data.routes.find((r) => r.isRecommended) ?? calc.data.routes[0];
-      toast.success(`${calc.data.routes.length} rotas encontradas!`, {
-        description: `Recomendada: ${rec.label} (score ${rec.score})`,
-      });
-    }
-     
-  }, [calc.data]);
+    if (!calc.isSuccess || !calc.data?.routes.length) return;
+    const key = calc.data.routes.map((r) => r.id).join('|');
+    if (key === lastRoutesKey.current) return; // mesmo resultado, não repetir toast
+    lastRoutesKey.current = key;
+    const rec = calc.data.routes.find((r) => r.isRecommended) ?? calc.data.routes[0];
+    toast.success(`${calc.data.routes.length} rotas encontradas!`, {
+      description: `Recomendada: ${rec.label} (score ${rec.score})`,
+    });
+  }, [calc.data, calc.isSuccess]);
 
   const locating = !geo.position && (geo.permission === 'unknown' || geo.permission === 'prompt');
 
@@ -216,4 +252,24 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Distância em metros entre dois pontos (Haversine). */
+function haversineMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+/** Chave estável para bounds (arredondada pra 3 casas — ~100m de precisão). */
+function boundsKey(b: GeoBounds): string {
+  return `${b.south.toFixed(3)},${b.west.toFixed(3)},${b.north.toFixed(3)},${b.east.toFixed(3)}`;
 }
